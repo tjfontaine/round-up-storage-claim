@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: round-up-storage-claim
+  labels:
+    app: round-up-storage-claim
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: round-up-storage-claim
+  template:
+    metadata:
+      labels:
+        app: round-up-storage-claim
+    spec:
+      containers:
+      - name: storage-claim
+        image: __REPLACE_ME_ORG__/round-up-storage-claim:0.2
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8443
+        volumeMounts:
+          - name: round-up-certificates
+            mountPath: "/certs"
+            readOnly: true
+      volumes:
+      - name: round-up-certificates
+        secret:
+          secretName: round-up-certificates
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: roundup-storage
+spec:
+  selector:
+    app: round-up-storage-claim
+  ports:
+  - protocol: TCP
+    port: 443
+    targetPort: 8443
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: roundup-config
+webhooks:
+- name: storageclaim.k8s.oraclecloud.com
+  failurePolicy: Fail
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    resources:
+    - persistentvolumeclaims
+  clientConfig:
+    service:
+      namespace: kube-system
+      name: roundup-storage
+    caBundle: __REPLACE_ME_CRT__
+
